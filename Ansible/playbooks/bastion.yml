@@ -21,3 +21,76 @@
           - apt-transport-https
           - ca-certificates
         state: present
+
+    - name: Add Tailscale GPG key
+      ansible.builtin.shell: |
+        curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg | tee /usr/share/keyrings/tailscale-archive-keyring.gpg > /dev/null
+      args:
+        creates: /usr/share/keyrings/tailscale-archive-keyring.gpg
+
+    - name: Add Tailscale repository
+      ansible.builtin.shell: |
+        curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.tailscale-keyring.list | tee /etc/apt/sources.list.d/tailscale.list > /dev/null
+      args:
+        creates: /etc/apt/sources.list.d/tailscale.list
+
+    - name: Update apt cache after adding Tailscale repo
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Install Tailscale
+      ansible.builtin.apt:
+        name: tailscale
+        state: present
+
+    - name: Bring Tailscale up with auth key
+      ansible.builtin.command: >
+        tailscale up
+        --auth-key={{ tailscale_auth_key }}
+        --hostname={{ tailscale_hostname }}
+      register: tailscale_up_result
+      changed_when: tailscale_up_result.rc == 0
+
+    - name: Install nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+
+    - name: Write nginx index page
+      ansible.builtin.copy:
+        dest: /var/www/html/index.html
+        content: |
+          <!DOCTYPE html>
+          <html lang="nl">
+          <head>
+          <meta charset="UTF-8">
+          <title>Live</title>
+          <style>
+          body {
+            margin: 0;
+            background: #0b0f0c;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+          }
+          img {
+            max-width: 90vw;
+            max-height: 90vh;
+            border-radius: 12px;
+          }
+          </style>
+          </head>
+          <body>
+          <img src="https://cordis.europa.eu/docs/results/images/2020-08/421838.jpg" alt="robot arm">
+          </body>
+          </html>
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Ensure nginx is enabled and running
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true

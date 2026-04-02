@@ -6,7 +6,8 @@
 
 # Ansible
 **/*.retry
-
+.Ansible/group_vars/bastion.yml
+.Ansible/inventory/group_vars/bastion.yml
 # SSH keys
 *.pem
 *.key
