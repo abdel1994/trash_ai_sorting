@@ -1,0 +1,20 @@
+# Terraform
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/.terraform.lock.hcl
+
+# Ansible
+**/*.retry
+
+# SSH keys
+*.pem
+*.key
+
+# Python / cache
+**/__pycache__/
+.venv/
+
+# Editor / OS
+.vscode/
+.DS_Store
