@@ -42,6 +42,22 @@ output "bastion_private_ip" {
   value = module.bastion.private_ip
 }
 
+output "bastion_eip_allocation_id" {
+  value = aws_eip_association.bastion.allocation_id
+}
+
 output "bastion_public_ip" {
   value = module.bastion.public_ip
-} 
+}
+
+output "nat_instance_id" {
+  value = module.nat.instance_id
+}
+
+output "nat_private_ip" {
+  value = module.nat.private_ip
+}
+
+output "nat_public_ip" {
+  value = module.nat.public_ip
+}

@@ -46,3 +46,7 @@ variable "bastion_key_name" {
 variable "bastion_eip_allocation_id" {
   type = string
 }
+
+variable "nat_instance_type" {
+  type = string
+}

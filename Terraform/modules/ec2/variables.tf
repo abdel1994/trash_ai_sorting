@@ -32,3 +32,13 @@ variable "root_volume_size" {
   type    = number
   default = 8
 }
+
+variable "source_dest_check" {
+  type    = bool
+  default = true
+}
+
+variable "user_data" {
+  type    = string
+  default = null
+}

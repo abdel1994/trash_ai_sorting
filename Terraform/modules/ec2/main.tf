@@ -5,6 +5,8 @@ resource "aws_instance" "this" {
   vpc_security_group_ids      = var.security_group_ids
   key_name                    = var.key_name
   associate_public_ip_address = var.associate_public_ip_address
+  source_dest_check           = var.source_dest_check
+  user_data                   = var.user_data
 
   root_block_device {
     volume_size = var.root_volume_size
