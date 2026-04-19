@@ -3,10 +3,14 @@
 **/*.tfstate
 **/*.tfstate.*
 **/.terraform.lock.hcl
+**/*.tfvars
 
 # Ansible
 **/*.retry
 Ansible/inventory/group_vars/*.yml
+!Ansible/inventory/group_vars/*.example.yml
+Ansible/inventory/*.ini
+!Ansible/inventory/*.example.ini
 # SSH keys
 *.pem
 *.key
@@ -18,3 +22,6 @@ Ansible/inventory/group_vars/*.yml
 # Editor / OS
 .vscode/
 .DS_Store
+
+# Runtime data
+yolo-container/broker/data/*.db

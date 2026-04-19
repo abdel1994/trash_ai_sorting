@@ -1,0 +1,2 @@
+tailscale_auth_key: "replace-with-your-tailscale-auth-key"
+tailscale_hostname: "bastion-trash-ai"
