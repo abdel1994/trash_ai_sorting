@@ -1,0 +1,153 @@
+---
+- name: Configure Mosquitto MQTT Broker
+  hosts: mosquitto
+  become: true
+
+  tasks:
+    - name: Validate Mosquitto settings
+      ansible.builtin.assert:
+        that:
+          - mosquitto_config_dir | length > 0
+          - mosquitto_data_dir | length > 0
+          - mosquitto_log_dir | length > 0
+          - mosquitto_port | int > 0
+          - mosquitto_port | int < 65536
+          - mosquitto_protocol | length > 0
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Upgrade packages
+      ansible.builtin.apt:
+        upgrade: dist
+
+    - name: Install Mosquitto
+      ansible.builtin.apt:
+        name:
+          - mosquitto
+          - mosquitto-clients
+        state: present
+
+    - name: Install Tailscale dependencies
+      ansible.builtin.apt:
+        name:
+          - curl
+          - gnupg
+          - apt-transport-https
+          - ca-certificates
+        state: present
+
+    - name: Add Tailscale GPG key
+      ansible.builtin.shell: |
+        curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg | tee /usr/share/keyrings/tailscale-archive-keyring.gpg > /dev/null
+      args:
+        creates: /usr/share/keyrings/tailscale-archive-keyring.gpg
+
+    - name: Add Tailscale repository
+      ansible.builtin.shell: |
+        curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.tailscale-keyring.list | tee /etc/apt/sources.list.d/tailscale.list > /dev/null
+      args:
+        creates: /etc/apt/sources.list.d/tailscale.list
+
+    - name: Update apt cache after adding Tailscale repo
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Install Tailscale
+      ansible.builtin.apt:
+        name: tailscale
+        state: present
+
+    - name: Ensure Tailscale is enabled and running
+      ansible.builtin.service:
+        name: tailscaled
+        state: started
+        enabled: true
+
+    - name: Bring Tailscale up with existing auth key
+      ansible.builtin.command: >
+        tailscale up
+        --auth-key={{ tailscale_auth_key }}
+        --hostname={{ tailscale_hostname }}
+      register: tailscale_up_result
+      changed_when: tailscale_up_result.rc == 0
+      no_log: true
+
+    - name: Show Tailscale IP
+      ansible.builtin.command:
+        argv:
+          - tailscale
+          - ip
+          - -4
+      register: tailscale_ip
+      changed_when: false
+
+    - name: Create Mosquitto config directory
+      ansible.builtin.file:
+        path: "{{ mosquitto_config_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Create Mosquitto runtime directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ mosquitto_user }}"
+        group: "{{ mosquitto_group }}"
+        mode: "0755"
+      loop:
+        - "{{ mosquitto_data_dir }}"
+        - "{{ mosquitto_log_dir }}"
+
+    - name: Configure Mosquitto broker
+      ansible.builtin.template:
+        src: mosquitto.conf.j2
+        dest: "{{ mosquitto_config_dir }}/mosquitto.conf"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: restart mosquitto
+
+    - name: Ensure Mosquitto is enabled and running
+      ansible.builtin.service:
+        name: mosquitto
+        state: started
+        enabled: true
+
+    - name: Apply pending Mosquitto configuration changes
+      ansible.builtin.meta: flush_handlers
+
+    - name: Verify Mosquitto is listening
+      ansible.builtin.wait_for:
+        port: "{{ mosquitto_port }}"
+        host: 127.0.0.1
+        timeout: 30
+        state: present
+
+    - name: Verify Mosquitto accepts MQTT publishes
+      ansible.builtin.command:
+        argv:
+          - mosquitto_pub
+          - -h
+          - 127.0.0.1
+          - -p
+          - "{{ mosquitto_port | string }}"
+          - -t
+          - ansible/healthcheck
+          - -m
+          - ok
+      changed_when: false
+
+    - name: Print broker Tailscale endpoint
+      ansible.builtin.debug:
+        msg: "Use MQTT_BROKER={{ tailscale_ip.stdout }} and MQTT_PORT={{ mosquitto_port }}"
+
+  handlers:
+    - name: restart mosquitto
+      ansible.builtin.service:
+        name: mosquitto
+        state: restarted

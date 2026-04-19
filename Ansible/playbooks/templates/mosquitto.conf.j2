@@ -1,0 +1,32 @@
+# Mosquitto MQTT Broker Configuration
+
+# Default listener
+listener {{ mosquitto_port }}
+protocol {{ mosquitto_protocol }}
+
+# TLS listener (optional)
+# listener 8883
+# protocol mqtt
+# cafile /etc/mosquitto/certs/ca.crt
+# certfile /etc/mosquitto/certs/cert.crt
+# keyfile /etc/mosquitto/certs/key.key
+
+# Persistence
+persistence {{ mosquitto_persistence | ternary('true', 'false') }}
+persistence_location {{ mosquitto_data_dir | regex_replace('/+$', '') }}/
+
+# Logging
+log_dest syslog
+log_dest stdout
+log_type all
+log_timestamp true
+
+# Security
+allow_anonymous {{ mosquitto_allow_anonymous | ternary('true', 'false') }}
+
+# Performance
+max_connections -1
+max_queued_messages 1000
+
+# Message retention
+message_size_limit 0

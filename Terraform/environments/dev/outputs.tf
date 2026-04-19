@@ -47,6 +47,10 @@ output "bastion_eip_allocation_id" {
 }
 
 output "bastion_public_ip" {
+  value = aws_eip_association.bastion.public_ip
+}
+
+output "bastion_instance_public_ip" {
   value = module.bastion.public_ip
 }
 
@@ -60,4 +64,16 @@ output "nat_private_ip" {
 
 output "nat_public_ip" {
   value = module.nat.public_ip
+}
+
+output "bastion_elastic_ip" {
+  value = aws_eip_association.bastion.public_ip
+}
+
+output "mosquitto_instance_id" {
+  value = module.mosquitto.instance_id
+}
+
+output "mosquitto_private_ip" {
+  value = module.mosquitto.private_ip
 }

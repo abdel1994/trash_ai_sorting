@@ -63,6 +63,35 @@ module "private_sg" {
 
 }
 
+// MQTT Ingress rules for Mosquitto broker in private instances
+resource "aws_vpc_security_group_ingress_rule" "private_mqtt" {
+  security_group_id = module.private_sg.security_group_id
+  cidr_ipv4         = var.private_subnet_cidr
+  from_port         = 1883
+  to_port           = 1883
+  ip_protocol       = "tcp"
+  description       = "MQTT"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "private_mqtt_tls" {
+  security_group_id = module.private_sg.security_group_id
+  cidr_ipv4         = var.private_subnet_cidr
+  from_port         = 8883
+  to_port           = 8883
+  ip_protocol       = "tcp"
+  description       = "MQTT TLS"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "private_mqtt_from_bastion" {
+  security_group_id            = module.private_sg.security_group_id
+  referenced_security_group_id = module.bastion_sg.security_group_id
+  from_port                    = 1883
+  to_port                      = 1883
+  ip_protocol                  = "tcp"
+  description                  = "MQTT from bastion tunnel"
+}
+
+
 // dit is de ami lookup omdat ami id's regio gebonden zijn en kunnen veranderen // 
 data "aws_ami" "ubuntu_bastion" {
   most_recent = true
@@ -97,6 +126,30 @@ module "bastion" {
 resource "aws_eip_association" "bastion" {
   instance_id   = module.bastion.instance_id
   allocation_id = var.bastion_eip_allocation_id
+}
+
+resource "local_file" "ansible_inventory" {
+  filename = "${path.module}/../../../Ansible/inventory/hosts.ini"
+
+  content = <<-EOF
+[bastion]
+bastion-host ansible_host=${aws_eip_association.bastion.public_ip}
+
+[mosquitto]
+mosquitto-broker ansible_host=${module.mosquitto.private_ip} ansible_ssh_common_args='-o ProxyCommand="ssh -i ~/.ssh/ssh-key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p ubuntu@${aws_eip_association.bastion.public_ip}"'
+EOF
+}
+
+resource "local_file" "ansible_inventory_tailscale" {
+  filename = "${path.module}/../../../Ansible/inventory/hosts-tailscale.ini"
+
+  content = <<-EOF
+[bastion]
+bastion-host ansible_host=bastion-trash-ai
+
+[mosquitto]
+mosquitto-broker ansible_host=${module.mosquitto.private_ip} ansible_ssh_common_args='-o ProxyCommand="ssh -i ~/.ssh/ssh-key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p ubuntu@bastion-trash-ai"'
+EOF
 }
 
 // ami lookup  NAT ec2 Instance
@@ -142,4 +195,17 @@ resource "aws_route" "private_nat_outbound" {
   route_table_id         = module.route_tables.private_route_table_id
   destination_cidr_block = "0.0.0.0/0"
   network_interface_id   = module.nat.primary_network_interface_id
+}
+
+// Mosquitto MQTT Broker in private subnet
+module "mosquitto" {
+  source = "../../modules/ec2"
+
+  name               = "${var.project_name}-mosquitto"
+  ami_id             = data.aws_ami.ubuntu_bastion.id
+  instance_type      = var.mosquitto_instance_type
+  subnet_id          = module.network.private_subnet_id
+  security_group_ids = [module.private_sg.security_group_id]
+  key_name           = var.mosquitto_key_name
+  root_volume_size   = 20
 }

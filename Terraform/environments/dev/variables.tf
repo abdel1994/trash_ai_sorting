@@ -50,3 +50,11 @@ variable "bastion_eip_allocation_id" {
 variable "nat_instance_type" {
   type = string
 }
+
+variable "mosquitto_instance_type" {
+  type = string
+}
+
+variable "mosquitto_key_name" {
+  type = string
+}
