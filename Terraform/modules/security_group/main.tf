@@ -1,3 +1,4 @@
+# Basis security group
 resource "aws_security_group" "this" {
   name        = var.name
   description = var.description
@@ -8,6 +9,7 @@ resource "aws_security_group" "this" {
   }
 }
 
+# Ingress via CIDR
 resource "aws_vpc_security_group_ingress_rule" "cidr_ports" {
   for_each = var.ingress_protocol == "-1" ? toset([]) : toset(var.ingress_cidr_blocks)
 
@@ -18,6 +20,7 @@ resource "aws_vpc_security_group_ingress_rule" "cidr_ports" {
   ip_protocol       = var.ingress_protocol
 }
 
+# Ingress via CIDR all
 resource "aws_vpc_security_group_ingress_rule" "cidr_all" {
   for_each = var.ingress_protocol == "-1" ? toset(var.ingress_cidr_blocks) : toset([])
 
@@ -26,6 +29,7 @@ resource "aws_vpc_security_group_ingress_rule" "cidr_all" {
   ip_protocol       = "-1"
 }
 
+# Ingress via security group
 resource "aws_vpc_security_group_ingress_rule" "sg_ports" {
   count = var.create_ingress_from_sg && var.ingress_protocol != "-1" ? 1 : 0
 
@@ -36,6 +40,7 @@ resource "aws_vpc_security_group_ingress_rule" "sg_ports" {
   ip_protocol                  = var.ingress_protocol
 }
 
+# Ingress via security group all
 resource "aws_vpc_security_group_ingress_rule" "sg_all" {
   count = var.create_ingress_from_sg && var.ingress_protocol == "-1" ? 1 : 0
 
@@ -44,6 +49,7 @@ resource "aws_vpc_security_group_ingress_rule" "sg_all" {
   ip_protocol                  = "-1"
 }
 
+# Egress alles
 resource "aws_vpc_security_group_egress_rule" "all" {
   security_group_id = aws_security_group.this.id
   cidr_ipv4         = "0.0.0.0/0"

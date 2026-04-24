@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YOLO MQTT benchmark</title>
+  <style>
+    :root {
+      --bg: #f7f7f7;
+      --panel: #ffffff;
+      --ink: #1f2937;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --accent: #0f766e;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: 34px;
+    }
+    p {
+      line-height: 1.5;
+      color: var(--muted);
+    }
+    .intro,
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin: 18px 0;
+    }
+    .stat-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px;
+      background: #fbfbfb;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th, td {
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+    }
+    th {
+      background: #f9fafb;
+    }
+    h2 {
+      margin: 0 0 12px;
+      font-size: 22px;
+    }
+    ul {
+      margin: 0;
+      padding-left: 18px;
+      line-height: 1.6;
+    }
+    .small {
+      color: var(--muted);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="intro">
+      <h1>YOLO MQTT benchmark</h1>
+      <p>
+        Vergelijking tussen lokaal en cloud/Tailscale op basis van dezelfde 100 testimages.
+        Dit rapport gebruikt per image eerst een gemiddelde en vergelijkt daarna de mediaan van die image-gemiddelden.
+      </p>
+      <div class="stats">
+        
+            <article class="stat-card">
+              <span>Roundtrip lokaal</span>
+              <strong>4.29 ms</strong>
+            </article>
+            
+            <article class="stat-card">
+              <span>Roundtrip cloud/Tailscale</span>
+              <strong>24.55 ms</strong>
+            </article>
+            
+            <article class="stat-card">
+              <span>Extra vertraging</span>
+              <strong>20.26 ms</strong>
+            </article>
+            
+            <article class="stat-card">
+              <span>Verhouding</span>
+              <strong>5.73x</strong>
+            </article>
+            
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Kernconclusie</h2>
+      <ul>
+        <li>De mediane roundtrip stijgt van 4.29 ms naar 24.55 ms.</li>
+        <li>Dat is 20.26 ms extra vertraging en ongeveer 5.73x langzamer.</li>
+        <li>De inferentie blijft bijna gelijk: 54.48 ms lokaal versus 54.25 ms in de cloud.</li>
+      </ul>
+    </section>
+
+    <section class="panel">
+      <h2>Hoofdvergelijking</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Lokaal mediaan</th>
+            <th>Cloud/Tailscale mediaan</th>
+            <th>Verschil</th>
+            <th>Verhouding</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Inferentie</td><td>54.48 ms</td><td>54.25 ms</td><td>-0.23 ms</td><td>1.00x</td></tr><tr><td>Publisher naar subscriber</td><td>1.60 ms</td><td>11.77 ms</td><td>10.17 ms</td><td>7.36x</td></tr><tr><td>Ack terug naar publisher</td><td>2.63 ms</td><td>12.72 ms</td><td>10.09 ms</td><td>4.84x</td></tr><tr><td>Totale roundtrip</td><td>4.29 ms</td><td>24.55 ms</td><td>20.26 ms</td><td>5.72x</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2>Gemiddelden over alle berichten</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Lokaal gemiddelde</th>
+            <th>Cloud/Tailscale gemiddelde</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Inferentie</td><td>76.93 ms</td><td>81.71 ms</td></tr><tr><td>Publisher naar subscriber</td><td>1.62 ms</td><td>11.78 ms</td></tr><tr><td>Ack terug naar publisher</td><td>2.65 ms</td><td>12.71 ms</td></tr><tr><td>Totale roundtrip</td><td>4.30 ms</td><td>24.53 ms</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2>Meetopzet</h2>
+      <ul>
+        <li>Lokaal: 200 berichten over 100 unieke images.</li>
+        <li>Cloud/Tailscale: 400 berichten over 100 unieke images.</li>
+        <li>Lokaal heeft gemiddeld 2 runs per image, cloud/Tailscale 4.</li>
+        <li>Daarom is de hoofdvergelijking gebaseerd op per-image gemiddelden.</li>
+      </ul>
+      <p class="small">Gegenereerd op 2026-04-21 12:01:57 CEST</p>
+      <p class="small">
+        Bronbestanden: yolo-container/results_roundtrip_local_steps.csv,
+        yolo-container/results_roundtrip_cloud_tailscale_steps.csv,
+        yolo-container/results_subscriber_local_steps.csv en
+        yolo-container/results_subscriber_cloud_tailscale_steps.csv.
+      </p>
+    </section>
+  </main>
+</body>
+</html>

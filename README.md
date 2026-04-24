@@ -289,15 +289,28 @@ mosquitto_user: "mosquitto"
 mosquitto_group: "mosquitto"
 ```
 
+Voor de primaire PostgreSQL server kan lokaal een bestand worden gemaakt zoals:
+
+```yaml
+postgres_version: 16
+postgres_service_name: "postgresql"
+postgres_device: "/dev/nvme1n1"
+postgres_mount_point: "/data/postgres"
+postgres_old_data_dir: "/var/lib/postgresql/16/main"
+```
+
 Draai daarna de playbooks:
 
 ```bash
 ansible-playbook playbooks/bastion.yml
 ansible-playbook playbooks/mosquitto-broker.yml
+ansible-playbook playbooks/postgresql-primary.yml
 ```
 
 Het bastion-playbook installeert onder andere Tailscale en Nginx. Het
-Mosquitto-playbook installeert en configureert de MQTT broker.
+Mosquitto-playbook installeert en configureert de MQTT broker. Het
+PostgreSQL-playbook formatteert en mount de extra EBS-volume, zet de mount in
+`/etc/fstab` en laat PostgreSQL de persistente data-directory gebruiken.
 
 ## Lokale MQTT broker starten
 

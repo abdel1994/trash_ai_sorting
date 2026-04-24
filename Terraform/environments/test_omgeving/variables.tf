@@ -1,5 +1,3 @@
-# Variabelen dev
-
 variable "aws_region" { type = string }
 
 variable "aws_profile" { type = string }
@@ -12,7 +10,11 @@ variable "public_subnet_cidr" { type = string }
 
 variable "private_subnet_cidr" { type = string }
 
+variable "private_subnet_cidr_secondary" { type = string }
+
 variable "availability_zone" { type = string }
+
+variable "availability_zone_secondary" { type = string }
 
 variable "admin_ip_cidr" { type = string }
 
@@ -29,8 +31,14 @@ variable "bastion_eip_allocation_id" { type = string }
 
 variable "nat_instance_type" { type = string }
 
-variable "bastion_eip_public_ip" { type = string }
-
 variable "mosquitto_instance_type" { type = string }
 
 variable "mosquitto_key_name" { type = string }
+
+variable "api_instance_type" { type = string }
+
+variable "dashboard_instance_type" { type = string }
+
+variable "db_instance_type" { type = string }
+
+variable "db_key_name" { type = string }

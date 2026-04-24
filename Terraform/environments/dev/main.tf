@@ -1,3 +1,4 @@
+# Netwerk
 module "network" {
   source = "../../modules/network"
 
@@ -8,6 +9,7 @@ module "network" {
   availability_zone   = var.availability_zone
 }
 
+# Routing
 module "route_tables" {
   source = "../../modules/route_tables"
 
@@ -18,6 +20,7 @@ module "route_tables" {
   internet_gateway_id = module.network.internet_gateway_id
 }
 
+# Toegangslijst bastion
 locals {
   bastion_ingress_cidrs = compact([
     var.admin_ip_cidr,
@@ -25,6 +28,7 @@ locals {
   ])
 }
 
+# Security groups
 module "bastion_sg" {
   source = "../../modules/security_group"
 
@@ -60,10 +64,9 @@ module "private_sg" {
   ingress_from_port                = 22
   ingress_to_port                  = 22
   ingress_protocol                 = "tcp"
-
 }
 
-// MQTT Ingress rules for Mosquitto broker in private instances
+# MQTT toegang
 resource "aws_vpc_security_group_ingress_rule" "private_mqtt" {
   security_group_id = module.private_sg.security_group_id
   cidr_ipv4         = var.private_subnet_cidr
@@ -91,8 +94,7 @@ resource "aws_vpc_security_group_ingress_rule" "private_mqtt_from_bastion" {
   description                  = "MQTT from bastion tunnel"
 }
 
-
-// dit is de ami lookup omdat ami id's regio gebonden zijn en kunnen veranderen // 
+# AMI lookup
 data "aws_ami" "ubuntu_bastion" {
   most_recent = true
   owners      = ["099720109477"] # Canonical
@@ -108,7 +110,7 @@ data "aws_ami" "ubuntu_bastion" {
   }
 }
 
-
+# Bastion host
 module "bastion" {
   source = "../../modules/ec2"
 
@@ -122,12 +124,13 @@ module "bastion" {
   root_volume_size            = 8
 }
 
-// toewijzing van elastic ip (persistent ) // 
+# Koppel vaste EIP
 resource "aws_eip_association" "bastion" {
   instance_id   = module.bastion.instance_id
   allocation_id = var.bastion_eip_allocation_id
 }
 
+# Ansible inventory
 resource "local_file" "ansible_inventory" {
   filename = "${path.module}/../../../Ansible/inventory/hosts.ini"
 
@@ -140,6 +143,7 @@ mosquitto-broker ansible_host=${module.mosquitto.private_ip} ansible_ssh_common_
 EOF
 }
 
+# Ansible inventory via Tailscale
 resource "local_file" "ansible_inventory_tailscale" {
   filename = "${path.module}/../../../Ansible/inventory/hosts-tailscale.ini"
 
@@ -152,11 +156,12 @@ mosquitto-broker ansible_host=${module.mosquitto.private_ip} ansible_ssh_common_
 EOF
 }
 
-// ami lookup  NAT ec2 Instance
+# NAT AMI
 data "aws_ssm_parameter" "al2023_ami" {
   name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
 }
 
+# NAT instance
 module "nat" {
   source = "../../modules/ec2"
 
@@ -189,15 +194,14 @@ module "nat" {
               EOF
 }
 
-// private subnet  route naar NAT //
-
+# Default route via NAT
 resource "aws_route" "private_nat_outbound" {
   route_table_id         = module.route_tables.private_route_table_id
   destination_cidr_block = "0.0.0.0/0"
   network_interface_id   = module.nat.primary_network_interface_id
 }
 
-// Mosquitto MQTT Broker in private subnet
+# Mosquitto broker
 module "mosquitto" {
   source = "../../modules/ec2"
 

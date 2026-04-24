@@ -1,0 +1,196 @@
+{
+  "generated_at": "2026-04-21T10:01:57.415183+00:00",
+  "inputs": {
+    "local_roundtrip": "yolo-container/results_roundtrip_local_steps.csv",
+    "cloud_roundtrip": "yolo-container/results_roundtrip_cloud_tailscale_steps.csv",
+    "local_subscriber": "yolo-container/results_subscriber_local_steps.csv",
+    "cloud_subscriber": "yolo-container/results_subscriber_cloud_tailscale_steps.csv"
+  },
+  "scenarios": {
+    "local": {
+      "overview": {
+        "message_count": 200,
+        "unique_image_count": 100,
+        "average_repetitions_per_image": 2.0,
+        "timeout_count": 0,
+        "subscriber_one_way_ms": {
+          "count": 200,
+          "mean": 1.62,
+          "median": 1.6,
+          "p95": 1.84,
+          "minimum": 1.4,
+          "maximum": 2.0
+        }
+      },
+      "all_messages": {
+        "inference_ms": {
+          "count": 200,
+          "mean": 76.93,
+          "median": 53.31,
+          "p95": 125.23,
+          "minimum": 23.95,
+          "maximum": 1506.19
+        },
+        "publish_to_subscriber_ms": {
+          "count": 200,
+          "mean": 1.62,
+          "median": 1.6,
+          "p95": 1.84,
+          "minimum": 1.4,
+          "maximum": 2.0
+        },
+        "ack_return_ms": {
+          "count": 200,
+          "mean": 2.65,
+          "median": 2.63,
+          "p95": 2.91,
+          "minimum": 2.39,
+          "maximum": 3.2
+        },
+        "roundtrip_ms": {
+          "count": 200,
+          "mean": 4.3,
+          "median": 4.27,
+          "p95": 4.61,
+          "minimum": 3.92,
+          "maximum": 4.9
+        }
+      }
+    },
+    "cloud": {
+      "overview": {
+        "message_count": 400,
+        "unique_image_count": 100,
+        "average_repetitions_per_image": 4.0,
+        "timeout_count": 0,
+        "subscriber_one_way_ms": {
+          "count": 400,
+          "mean": 11.78,
+          "median": 11.78,
+          "p95": 12.1,
+          "minimum": 11.25,
+          "maximum": 12.61
+        }
+      },
+      "all_messages": {
+        "inference_ms": {
+          "count": 400,
+          "mean": 81.71,
+          "median": 53.48,
+          "p95": 131.76,
+          "minimum": 22.93,
+          "maximum": 1928.33
+        },
+        "publish_to_subscriber_ms": {
+          "count": 400,
+          "mean": 11.78,
+          "median": 11.78,
+          "p95": 12.1,
+          "minimum": 11.25,
+          "maximum": 12.61
+        },
+        "ack_return_ms": {
+          "count": 400,
+          "mean": 12.71,
+          "median": 12.7,
+          "p95": 13.06,
+          "minimum": 12.26,
+          "maximum": 13.74
+        },
+        "roundtrip_ms": {
+          "count": 400,
+          "mean": 24.53,
+          "median": 24.52,
+          "p95": 25.06,
+          "minimum": 23.75,
+          "maximum": 25.57
+        }
+      }
+    }
+  },
+  "common_images_per_metric": {
+    "inference_ms": {
+      "common_image_count": 100,
+      "local": {
+        "count": 100,
+        "mean": 76.93,
+        "median": 54.48,
+        "p95": 124.82,
+        "minimum": 23.99,
+        "maximum": 1493.15
+      },
+      "cloud": {
+        "count": 100,
+        "mean": 81.71,
+        "median": 54.25,
+        "p95": 132.26,
+        "minimum": 24.61,
+        "maximum": 1908.47
+      }
+    },
+    "publish_to_subscriber_ms": {
+      "common_image_count": 100,
+      "local": {
+        "count": 100,
+        "mean": 1.62,
+        "median": 1.6,
+        "p95": 1.75,
+        "minimum": 1.41,
+        "maximum": 1.96
+      },
+      "cloud": {
+        "count": 100,
+        "mean": 11.78,
+        "median": 11.77,
+        "p95": 11.98,
+        "minimum": 11.47,
+        "maximum": 12.08
+      }
+    },
+    "ack_return_ms": {
+      "common_image_count": 100,
+      "local": {
+        "count": 100,
+        "mean": 2.65,
+        "median": 2.63,
+        "p95": 2.82,
+        "minimum": 2.48,
+        "maximum": 3.04
+      },
+      "cloud": {
+        "count": 100,
+        "mean": 12.71,
+        "median": 12.72,
+        "p95": 12.87,
+        "minimum": 12.45,
+        "maximum": 13.05
+      }
+    },
+    "roundtrip_ms": {
+      "common_image_count": 100,
+      "local": {
+        "count": 100,
+        "mean": 4.3,
+        "median": 4.29,
+        "p95": 4.56,
+        "minimum": 3.99,
+        "maximum": 4.78
+      },
+      "cloud": {
+        "count": 100,
+        "mean": 24.53,
+        "median": 24.55,
+        "p95": 24.77,
+        "minimum": 24.16,
+        "maximum": 24.94
+      }
+    }
+  },
+  "evidence": {
+    "roundtrip_ratio": 5.73,
+    "roundtrip_delta_ms": 20.26,
+    "inference_delta_ms": -0.23,
+    "publish_delta_ms": 10.16,
+    "ack_delta_ms": 10.09
+  }
+}
