@@ -1,6 +1,6 @@
 ---
-- name: Configure bastion host
-  hosts: bastion
+- name: Configure dashboard server Tailscale client
+  hosts: dashboard
   become: true
 
   tasks:
@@ -15,11 +15,7 @@
         update_cache: true
         cache_valid_time: 3600
 
-    - name: Upgrade packages
-      ansible.builtin.apt:
-        upgrade: dist
-
-    - name: Install required packages
+    - name: Install Tailscale dependencies
       ansible.builtin.apt:
         name:
           - curl
@@ -76,50 +72,6 @@
       register: tailscale_ip
       changed_when: false
 
-    - name: Install nginx
-      ansible.builtin.apt:
-        name: nginx
-        state: present
-
-    - name: Write nginx index page
-      ansible.builtin.copy:
-        dest: /var/www/html/index.html
-        content: |
-          <!DOCTYPE html>
-          <html lang="nl">
-          <head>
-          <meta charset="UTF-8">
-          <title>Live</title>
-          <style>
-          body {
-            margin: 0;
-            background: #0b0f0c;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-          }
-          img {
-            max-width: 90vw;
-            max-height: 90vh;
-            border-radius: 12px;
-          }
-          </style>
-          </head>
-          <body>
-          <img src="https://cordis.europa.eu/docs/results/images/2020-08/421838.jpg" alt="robot arm">
-          </body>
-          </html>
-        owner: root
-        group: root
-        mode: "0644"
-
-    - name: Ensure nginx is enabled and running
-      ansible.builtin.service:
-        name: nginx
-        state: started
-        enabled: true
-
-    - name: Print bastion Tailscale endpoint
+    - name: Print dashboard server Tailscale endpoint
       ansible.builtin.debug:
-        msg: "Bastion is bereikbaar via {{ tailscale_ip.stdout }}"
+        msg: "Dashboard server is bereikbaar via {{ tailscale_ip.stdout }}"

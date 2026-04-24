@@ -1,0 +1,423 @@
+---
+- name: Configure PostgreSQL primary server
+  hosts: postgres_primary
+  become: true
+
+  tasks:
+    - name: Validate PostgreSQL storage settings
+      ansible.builtin.assert:
+        that:
+          - postgres_version | int > 0
+          - postgres_device | length > 0
+          - postgres_mount_point | length > 0
+          - postgres_old_data_dir | length > 0
+          - postgres_databases | length > 0
+          - postgres_admin_roles | length > 0
+
+    - name: Validate Tailscale settings when enabled
+      ansible.builtin.assert:
+        that:
+          - tailscale_auth_key is defined
+          - tailscale_auth_key | length > 0
+          - tailscale_hostname is defined
+          - tailscale_hostname | length > 0
+        fail_msg: >-
+          Tailscale staat aan voor PostgreSQL, maar tailscale_auth_key of tailscale_hostname ontbreekt.
+      when: postgres_enable_tailscale | bool
+
+    - name: Build allowlist for API hosts
+      ansible.builtin.set_fact:
+        postgres_api_allowed_cidrs_effective: >-
+          {{
+            (
+              groups['api'] | default([])
+            )
+            | map('extract', hostvars, 'ansible_host')
+            | reject('equalto', None)
+            | map('regex_replace', '$', '/32')
+            | list
+            + (postgres_extra_allowed_cidrs | default([]))
+          }}
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install PostgreSQL packages
+      ansible.builtin.apt:
+        name:
+          - postgresql
+          - postgresql-contrib
+          - rsync
+          - curl
+          - gnupg
+          - apt-transport-https
+          - ca-certificates
+        state: present
+
+    - name: Add Tailscale GPG key
+      ansible.builtin.shell: |
+        curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg | tee /usr/share/keyrings/tailscale-archive-keyring.gpg > /dev/null
+      args:
+        creates: /usr/share/keyrings/tailscale-archive-keyring.gpg
+      when: postgres_enable_tailscale | bool
+
+    - name: Add Tailscale repository
+      ansible.builtin.shell: |
+        curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.tailscale-keyring.list | tee /etc/apt/sources.list.d/tailscale.list > /dev/null
+      args:
+        creates: /etc/apt/sources.list.d/tailscale.list
+      when: postgres_enable_tailscale | bool
+
+    - name: Update apt cache after adding Tailscale repo
+      ansible.builtin.apt:
+        update_cache: true
+      when: postgres_enable_tailscale | bool
+
+    - name: Install Tailscale
+      ansible.builtin.apt:
+        name: tailscale
+        state: present
+      when: postgres_enable_tailscale | bool
+
+    - name: Ensure Tailscale is enabled and running
+      ansible.builtin.service:
+        name: tailscaled
+        state: started
+        enabled: true
+      when: postgres_enable_tailscale | bool
+
+    - name: Bring Tailscale up with existing auth key
+      ansible.builtin.command: >-
+        tailscale up
+        --auth-key={{ tailscale_auth_key }}
+        --hostname={{ tailscale_hostname }}
+        {% if tailscale_advertise_tags | default([]) | length > 0 -%}
+        --advertise-tags={{ tailscale_advertise_tags | join(',') }}
+        {%- endif %}
+      register: tailscale_up_result
+      changed_when: tailscale_up_result.rc == 0
+      no_log: true
+      when: postgres_enable_tailscale | bool
+
+    - name: Check filesystem type on database volume
+      ansible.builtin.command:
+        argv:
+          - blkid
+          - -o
+          - value
+          - -s
+          - TYPE
+          - "{{ postgres_device }}"
+      register: postgres_device_fs
+      changed_when: false
+      failed_when: postgres_device_fs.rc not in [0, 2]
+
+    - name: Refuse to format database volume without explicit approval
+      ansible.builtin.fail:
+        msg: >-
+          {{ postgres_device }} heeft nog geen ext4-filesystem.
+          Zet postgres_allow_format op true als Ansible deze disk bewust mag formatteren.
+      when:
+        - postgres_device_fs.rc != 0 or postgres_device_fs.stdout != "ext4"
+        - not (postgres_allow_format | bool)
+
+    - name: Format database volume as ext4 when needed
+      ansible.builtin.command:
+        argv:
+          - mkfs.ext4
+          - "{{ postgres_device }}"
+      when:
+        - postgres_device_fs.rc != 0 or postgres_device_fs.stdout != "ext4"
+        - postgres_allow_format | bool
+
+    - name: Create mount point for PostgreSQL data
+      ansible.builtin.file:
+        path: "{{ postgres_mount_point }}"
+        state: directory
+        mode: "0755"
+
+    - name: Read UUID from database volume
+      ansible.builtin.command:
+        argv:
+          - blkid
+          - -o
+          - value
+          - -s
+          - UUID
+          - "{{ postgres_device }}"
+      register: postgres_device_uuid
+      changed_when: false
+
+    - name: Persist database mount in fstab
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        regexp: "^UUID=.*\\s{{ postgres_mount_point | regex_escape() }}\\s"
+        line: "UUID={{ postgres_device_uuid.stdout }} {{ postgres_mount_point }} ext4 defaults,nofail 0 2"
+        state: present
+
+    - name: Check whether PostgreSQL volume is already mounted
+      ansible.builtin.command:
+        argv:
+          - mountpoint
+          - -q
+          - "{{ postgres_mount_point }}"
+      register: postgres_mountpoint
+      changed_when: false
+      failed_when: false
+
+    - name: Mount PostgreSQL volume
+      ansible.builtin.command:
+        argv:
+          - mount
+          - "{{ postgres_mount_point }}"
+      when: postgres_mountpoint.rc != 0
+
+    - name: Check whether PostgreSQL data already exists on persistent volume
+      ansible.builtin.stat:
+        path: "{{ postgres_mount_point }}/PG_VERSION"
+      register: postgres_new_data
+
+    - name: Check whether PostgreSQL data exists on root disk
+      ansible.builtin.stat:
+        path: "{{ postgres_old_data_dir }}/PG_VERSION"
+      register: postgres_old_data
+
+    - name: Stop PostgreSQL before data migration
+      ansible.builtin.service:
+        name: "{{ postgres_service_name }}"
+        state: stopped
+      when:
+        - postgres_old_data.stat.exists
+        - not postgres_new_data.stat.exists
+
+    - name: Copy PostgreSQL data to persistent volume
+      ansible.builtin.command:
+        argv:
+          - rsync
+          - -a
+          - "{{ postgres_old_data_dir }}/"
+          - "{{ postgres_mount_point }}/"
+      when:
+        - postgres_old_data.stat.exists
+        - not postgres_new_data.stat.exists
+
+    - name: Ensure PostgreSQL owns the persistent data directory
+      ansible.builtin.file:
+        path: "{{ postgres_mount_point }}"
+        owner: postgres
+        group: postgres
+        mode: "0700"
+        recurse: true
+
+    - name: Point PostgreSQL to persistent data directory
+      ansible.builtin.lineinfile:
+        path: "/etc/postgresql/{{ postgres_version }}/main/postgresql.conf"
+        regexp: "^data_directory\\s*="
+        line: "data_directory = '{{ postgres_mount_point }}'"
+      notify: restart postgresql
+
+    - name: Configure PostgreSQL listen addresses
+      ansible.builtin.lineinfile:
+        path: "/etc/postgresql/{{ postgres_version }}/main/postgresql.conf"
+        regexp: "^#?listen_addresses\\s*="
+        line: "listen_addresses = '{{ postgres_listen_addresses }}'"
+      notify: restart postgresql
+
+    - name: Configure PostgreSQL password encryption
+      ansible.builtin.lineinfile:
+        path: "/etc/postgresql/{{ postgres_version }}/main/postgresql.conf"
+        regexp: "^#?password_encryption\\s*="
+        line: "password_encryption = '{{ postgres_password_encryption }}'"
+      notify: restart postgresql
+
+    - name: Allow local PostgreSQL access and managed remote clients
+      ansible.builtin.blockinfile:
+        path: "/etc/postgresql/{{ postgres_version }}/main/pg_hba.conf"
+        marker: "# {mark} ANSIBLE MANAGED POSTGRES ACCESS"
+        block: |
+          local   all             postgres                                peer
+          local   all             all                                     peer
+          host    all             all             127.0.0.1/32            scram-sha-256
+          host    all             all             ::1/128                 scram-sha-256
+          {% for cidr in postgres_api_allowed_cidrs_effective %}
+          host    all             all             {{ cidr }}              {{ postgres_host_auth_method }}
+          {% endfor %}
+          {% for cidr in postgres_tailscale_allowed_cidrs %}
+          host    all             all             {{ cidr }}              {{ postgres_host_auth_method }}
+          {% endfor %}
+      notify: reload postgresql
+
+    - name: Ensure PostgreSQL is enabled and running
+      ansible.builtin.service:
+        name: "{{ postgres_service_name }}"
+        state: started
+        enabled: true
+
+    - name: Apply pending PostgreSQL restarts
+      ansible.builtin.meta: flush_handlers
+
+    - name: Check whether PostgreSQL application databases already exist
+      ansible.builtin.command:
+        argv:
+          - runuser
+          - -u
+          - postgres
+          - --
+          - psql
+          - -t
+          - -P
+          - format=unaligned
+          - -d
+          - postgres
+          - -c
+          - "SELECT 1 FROM pg_database WHERE datname = '{{ item | replace(\"'\", \"''\") }}';"
+      register: postgres_database_checks
+      changed_when: false
+      loop: "{{ postgres_databases }}"
+
+    - name: Create missing PostgreSQL application databases
+      ansible.builtin.command:
+        argv:
+          - runuser
+          - -u
+          - postgres
+          - --
+          - createdb
+          - "{{ item.item }}"
+      loop: "{{ postgres_database_checks.results }}"
+      when: item.stdout != "1"
+
+    - name: Check whether PostgreSQL admin roles already have the expected attributes
+      ansible.builtin.command:
+        argv:
+          - runuser
+          - -u
+          - postgres
+          - --
+          - psql
+          - -t
+          - -P
+          - format=unaligned
+          - -d
+          - postgres
+          - -c
+          - >-
+            SELECT CONCAT_WS(':', rolcanlogin::int, rolsuper::int, rolcreatedb::int, rolcreaterole::int, rolinherit::int)
+            FROM pg_catalog.pg_roles
+            WHERE rolname = '{{ item.name | replace("'", "''") }}';
+      register: postgres_role_checks
+      changed_when: false
+      loop: "{{ postgres_admin_roles }}"
+      no_log: true
+
+    - name: Ensure PostgreSQL admin roles exist and can log in
+      ansible.builtin.command:
+        argv:
+          - runuser
+          - -u
+          - postgres
+          - --
+          - psql
+          - -v
+          - ON_ERROR_STOP=1
+          - -d
+          - postgres
+          - -c
+          - |
+            DO $$
+            BEGIN
+              IF NOT EXISTS (
+                SELECT 1
+                FROM pg_catalog.pg_roles
+                WHERE rolname = '{{ item.item.name | replace("'", "''") }}'
+              ) THEN
+                CREATE ROLE "{{ item.item.name | replace('"', '""') }}";
+              END IF;
+            END
+            $$;
+            ALTER ROLE "{{ item.item.name | replace('"', '""') }}" WITH LOGIN SUPERUSER CREATEDB CREATEROLE INHERIT;
+            {% if item.item.password is defined and item.item.password | length > 0 %}
+            ALTER ROLE "{{ item.item.name | replace('"', '""') }}" WITH PASSWORD '{{ item.item.password | replace("'", "''") }}';
+            {% endif %}
+      loop: "{{ postgres_role_checks.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+      when:
+        - item.stdout != "1:1:1:1:1" or (item.item.password is defined and item.item.password | length > 0)
+      no_log: true
+
+    - name: Verify PostgreSQL data directory
+      ansible.builtin.command:
+        argv:
+          - runuser
+          - -u
+          - postgres
+          - --
+          - psql
+          - -t
+          - -P
+          - format=unaligned
+          - -c
+          - show data_directory;
+      register: postgres_data_directory_check
+      changed_when: false
+
+    - name: Verify PostgreSQL listen addresses
+      ansible.builtin.command:
+        argv:
+          - runuser
+          - -u
+          - postgres
+          - --
+          - psql
+          - -t
+          - -P
+          - format=unaligned
+          - -c
+          - show listen_addresses;
+      register: postgres_listen_addresses_check
+      changed_when: false
+
+    - name: Show Tailscale IP
+      ansible.builtin.command:
+        argv:
+          - tailscale
+          - ip
+          - -4
+      register: postgres_tailscale_ip
+      changed_when: false
+      when: postgres_enable_tailscale | bool
+
+    - name: Show PostgreSQL data directory
+      ansible.builtin.debug:
+        msg: "PostgreSQL gebruikt {{ postgres_data_directory_check.stdout }}"
+
+    - name: Show PostgreSQL listen addresses
+      ansible.builtin.debug:
+        msg: "PostgreSQL luistert op {{ postgres_listen_addresses_check.stdout }}"
+
+    - name: Show managed PostgreSQL databases and admin roles
+      ansible.builtin.debug:
+        msg:
+          - "Databases: {{ postgres_databases | join(', ') }}"
+          - "Admin roles: {{ postgres_admin_roles | map(attribute='name') | join(', ') }}"
+          - "API CIDRs: {{ postgres_api_allowed_cidrs_effective | join(', ') if postgres_api_allowed_cidrs_effective | length > 0 else 'geen' }}"
+          - "Tailscale CIDRs: {{ postgres_tailscale_allowed_cidrs | join(', ') if postgres_enable_tailscale | bool else 'uitgeschakeld' }}"
+
+    - name: Show PostgreSQL Tailscale endpoint
+      ansible.builtin.debug:
+        msg: "Use PostgreSQL over Tailscale via {{ postgres_tailscale_ip.stdout }}:5432"
+      when: postgres_enable_tailscale | bool
+
+  handlers:
+    - name: restart postgresql
+      ansible.builtin.service:
+        name: "{{ postgres_service_name }}"
+        state: restarted
+
+    - name: reload postgresql
+      ansible.builtin.service:
+        name: "{{ postgres_service_name }}"
+        state: reloaded

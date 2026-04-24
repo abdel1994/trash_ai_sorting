@@ -1,0 +1,31 @@
+postgres_version: 16
+postgres_service_name: postgresql
+postgres_device: /dev/nvme1n1
+postgres_mount_point: /data/postgres
+postgres_old_data_dir: /var/lib/postgresql/16/main
+postgres_allow_format: false
+postgres_enable_tailscale: true
+tailscale_auth_key: "replace-with-your-tailscale-auth-key"
+tailscale_hostname: postgres-primary-trash-ai
+tailscale_advertise_tags:
+  - tag:project-db
+postgres_listen_addresses: "*"
+postgres_password_encryption: scram-sha-256
+postgres_host_auth_method: scram-sha-256
+postgres_tailscale_allowed_cidrs:
+  - 100.64.0.0/10
+postgres_extra_allowed_cidrs: []
+
+postgres_databases:
+  - development
+  - testomgeving
+
+postgres_admin_roles:
+  - name: polly
+    # password: "{{ vault_postgres_polly_password }}"
+  - name: sebastiaan
+    # password: "{{ vault_postgres_sebastiaan_password }}"
+  - name: danial
+    # password: "{{ vault_postgres_danial_password }}"
+  - name: abdel
+    # password: "{{ vault_postgres_abdel_password }}"

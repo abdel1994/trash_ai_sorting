@@ -67,10 +67,13 @@
         enabled: true
 
     - name: Bring Tailscale up with existing auth key
-      ansible.builtin.command: >
+      ansible.builtin.command: >-
         tailscale up
         --auth-key={{ tailscale_auth_key }}
         --hostname={{ tailscale_hostname }}
+        {% if tailscale_advertise_tags | default([]) | length > 0 -%}
+        --advertise-tags={{ tailscale_advertise_tags | join(',') }}
+        {%- endif %}
       register: tailscale_up_result
       changed_when: tailscale_up_result.rc == 0
       no_log: true
